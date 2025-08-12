@@ -1,0 +1,5 @@
+max_width=80
+tab_spaces=2
+overflow_delimited_expr=true
+imports_granularity="Crate"
+group_imports="StdExternalCrate"
