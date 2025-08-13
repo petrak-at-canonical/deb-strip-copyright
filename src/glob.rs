@@ -25,6 +25,14 @@ enum GlobSegment {
 impl Glob {
   /// Check if this glob matches the given string.
   pub fn matches<S: AsRef<str>>(&self, s: S) -> bool {
+    if self.is_empty() {
+      // It is contentious whether this should match everything or nothing.
+      // IMHO, an empty glob feels like a user error, so it should fail-safe
+      // and do nothing.
+      // If you really want to match everything use `*`.
+      return false;
+    }
+
     let mut s_slice = s.as_ref();
 
     let mut peeker = self.segments.iter().peekable();
@@ -69,23 +77,15 @@ impl Glob {
       }
     }
 
-    s_slice.is_empty()
+    // it does not matter if the string is empty or not,
+    // because globs allow trailing
+    true
   }
 
   /// Return if this glob is empty.
-  /// (It will never match anything.)
+  /// It will technically match everything, but that is probably an error.
   pub fn is_empty(&self) -> bool {
     self.segments.is_empty()
-  }
-
-  /// If this glob is a single literal string, return it.
-  /// (IE, this glob has no wildcards and can be matched via hashing.)
-  pub fn as_single_literal(&self) -> Option<&str> {
-    match self.segments.as_slice() {
-      [] => None,
-      [GlobSegment::Literal(lit)] => Some(lit.as_str()),
-      _ => None,
-    }
   }
 }
 

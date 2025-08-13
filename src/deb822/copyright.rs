@@ -11,13 +11,10 @@ use log::{debug, trace};
 use crate::{deb822::Deb822File, glob::Glob};
 
 /// Specialization of [`Deb822File`] that throws away most of the information
-/// except for all the file exclusions
+/// except for all the file exclusions.
 #[derive(Clone, Debug)]
 pub struct CopyrightFile {
-  /// Duplicated merged hashset of all the normal
-  /// excluded files.
-  literal_excludes: HashSet<String>,
-  glob_excludes: Vec<Glob>,
+  excludes: Vec<Glob>,
 }
 
 impl CopyrightFile {
@@ -30,45 +27,33 @@ impl CopyrightFile {
     // this is hard to write as an iterator train
     // because we need to shortcut-return the error possibly
     let mut out = CopyrightFile {
-      literal_excludes: HashSet::new(),
-      glob_excludes: Vec::new(),
+      excludes: Vec::new(),
     };
 
-    for deb_stanza in deb.stanzas.into_iter() {
+    for deb_stanza in deb.stanzas.iter() {
       if let Some(fex) = deb_stanza.fields.get("Files-Excluded") {
         for form in fex.iter_lines().cloned() {
           let glob = Glob::from_str(&form)
             .wrap_err_with(|| eyre!("while parsing glob string {:?}", &form))?;
-          if let Some(lit) = glob.as_single_literal() {
-            out.literal_excludes.insert(lit.to_owned());
-          } else {
-            out.glob_excludes.push(glob);
+          if !glob.is_empty() {
+            out.excludes.push(glob);
           }
         }
       }
     }
 
     debug!(
-      "specialized CopyrightFile with {} glob excludes and {} literal excludes",
-      out.glob_excludes.len(),
-      out.literal_excludes.len()
+      "specialized CopyrightFile, {} stanzas turned into {} globx",
+      deb.stanzas.len(),
+      out.excludes.len()
     );
     Ok(out)
   }
 
   pub fn is_path_excluded<P: AsRef<Path>>(&self, p: P) -> bool {
     let p = p.as_ref();
-
     let path_str = p.to_string_lossy();
-    if self.literal_excludes.contains(&*path_str) {
-      false
-    } else {
-      let any_match = self
-        .glob_excludes
-        .iter()
-        .any(|glob| glob.matches(&*path_str));
-      any_match
-    }
+    self.excludes.iter().any(|glob| glob.matches(&*path_str))
   }
 }
 
