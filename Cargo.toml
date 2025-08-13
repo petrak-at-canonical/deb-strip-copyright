@@ -5,7 +5,10 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.5.45", features = ["derive"] }
+clap-verbosity-flag = "3.0.3"
+env_logger = "0.11.8"
 eyre = "0.6.12"
+log = "0.4.27"
 # Audit: google/rust-crate-audits ub-risk-2
 # https://lib.rs/crates/tar/audit
 tar = "0.4.44"

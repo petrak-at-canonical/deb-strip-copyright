@@ -1,17 +1,23 @@
-//! Type-safe conversion of generic Debian control files
+//! Type-safe specialization of generic Debian control files
 //! to `debian/copyright` syntax.
+//!
+//! https://www.debian.org/doc/packaging-manuals/copyright-format/1.0
 
 use std::{collections::HashSet, path::Path, str::FromStr};
 
-use crate::deb822::Deb822File;
+use eyre::{Context, eyre};
+use log::{debug, trace};
 
+use crate::{deb822::Deb822File, glob::Glob};
+
+/// Specialization of [`Deb822File`] that throws away most of the information
+/// except for all the file exclusions
 #[derive(Clone, Debug)]
 pub struct CopyrightFile {
-  /// List of stanzas
-  stanzas: Vec<CopyrightStanza>,
   /// Duplicated merged hashset of all the normal
   /// excluded files.
-  all_normal_excludes: HashSet<String>,
+  literal_excludes: HashSet<String>,
+  glob_excludes: Vec<Glob>,
 }
 
 impl CopyrightFile {
@@ -21,66 +27,47 @@ impl CopyrightFile {
   /// files and nothing else, stanzas without any copyright
   /// information are not put into `self`.
   pub fn new(deb: Deb822File) -> eyre::Result<Self> {
-    // this is very hard to write as an iterator train
-    let stanzas = deb
-      .stanzas
-      .into_iter()
-      .filter_map(|deb_stanza| {
-        if let Some(fex) = deb_stanza.fields.get("Files-Excluded") {
-          let usn = deb_stanza
-            .fields
-            .get("Upstream-Name")
-            .and_then(|f| f.same_line_value.clone());
-          let mut cs = CopyrightStanza {
-            upstream_name: usn,
-            files_excluded_normal: HashSet::new(),
-            files_excluded_wildcard: Vec::new(),
-          };
-          for form in fex.iter_lines().cloned() {
-            if form.contains('*') {
-              cs.files_excluded_wildcard.push(form);
-            } else {
-              cs.files_excluded_normal.insert(form);
-            }
-          }
-          Some(cs)
-        } else {
-          None
-        }
-      })
-      .collect();
-
+    // this is hard to write as an iterator train
+    // because we need to shortcut-return the error possibly
     let mut out = CopyrightFile {
-      stanzas,
-      all_normal_excludes: HashSet::new(),
+      literal_excludes: HashSet::new(),
+      glob_excludes: Vec::new(),
     };
-    out.recalculate_excludes();
-    Ok(out)
-  }
 
-  fn recalculate_excludes(&mut self) {
-    self.all_normal_excludes.clear();
-    self.all_normal_excludes.extend(
-      self
-        .stanzas
-        .iter()
-        .flat_map(|stanza| stanza.files_excluded_normal.iter().cloned()),
+    for deb_stanza in deb.stanzas.into_iter() {
+      if let Some(fex) = deb_stanza.fields.get("Files-Excluded") {
+        for form in fex.iter_lines().cloned() {
+          let glob = Glob::from_str(&form)
+            .wrap_err_with(|| eyre!("while parsing glob string {:?}", &form))?;
+          if let Some(lit) = glob.as_single_literal() {
+            out.literal_excludes.insert(lit.to_owned());
+          } else {
+            out.glob_excludes.push(glob);
+          }
+        }
+      }
+    }
+
+    debug!(
+      "specialized CopyrightFile with {} glob excludes and {} literal excludes",
+      out.glob_excludes.len(),
+      out.literal_excludes.len()
     );
+    Ok(out)
   }
 
   pub fn is_path_excluded<P: AsRef<Path>>(&self, p: P) -> bool {
     let p = p.as_ref();
 
     let path_str = p.to_string_lossy();
-    if self.all_normal_excludes.contains(&*path_str) {
+    if self.literal_excludes.contains(&*path_str) {
       false
     } else {
-      let any_match = self.stanzas.iter().any(|stanza| {
-        // TODO: match wildcard exclusions
-        // They use less powerful rules than `glob` crate
-        false
-      });
-      !any_match
+      let any_match = self
+        .glob_excludes
+        .iter()
+        .any(|glob| glob.matches(&*path_str));
+      any_match
     }
   }
 }
@@ -92,16 +79,4 @@ impl FromStr for CopyrightFile {
     let deb = Deb822File::from_str(s)?;
     Self::new(deb)
   }
-}
-
-#[derive(Clone, Debug)]
-pub struct CopyrightStanza {
-  /// Not actually used, but handy for debugging.
-  pub upstream_name: Option<String>,
-  /// Lines in `Files-Excluded` that do *not* have any
-  /// wildcards in them.
-  pub files_excluded_normal: HashSet<String>,
-  /// Lines in `Files-Excluded` that *DO* have
-  /// wildcards in them.
-  pub files_excluded_wildcard: Vec<String>,
 }

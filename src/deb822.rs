@@ -12,6 +12,7 @@ pub mod copyright;
 use std::{collections::HashMap, str::FromStr};
 
 use eyre::{Context, OptionExt, eyre};
+use log::{debug, trace};
 
 // Parsing.
 // Before we enter any `eat` function, comment lines are stripped.
@@ -46,6 +47,12 @@ impl Field {
   pub fn iter_lines(&self) -> impl Iterator<Item = &String> + '_ {
     self.same_line_value.iter().chain(self.list_values.iter())
   }
+
+  /// Convenience function that returns the number of values in this field
+  /// (including the same-line and list values).
+  pub fn len(&self) -> usize {
+    (self.same_line_value.is_some() as usize) + self.list_values.len()
+  }
 }
 
 impl FromStr for Deb822File {
@@ -70,6 +77,7 @@ impl FromStr for Deb822File {
       lines_slice = next_lines_slice;
     }
 
+    debug!("parsed Deb822 file with {} stanzas", stanzas.len());
     Ok(Deb822File { stanzas })
   }
 }
@@ -82,9 +90,9 @@ impl<'source> ParseMeta<'source> {
   /// If `fragment` is within this string, return the row and column
   /// that it starts at. Note these are 0-indexed.
   fn find_fragment_row_col(&self, fragment: &str) -> Option<(usize, usize)> {
-    // This is the evil part. It could be done with string
-    // searching instead, but i like this solution.
-    // even if it's really evil
+    // This is the evil part.
+    // It CANNOT be done with string searching, as there are duplicate
+    // substrings in the source.
     let self_start = self.source.as_ptr() as usize;
     let frag_start = fragment.as_ptr() as usize;
 
@@ -114,15 +122,20 @@ impl<'source> ParseMeta<'source> {
     }
   }
 
-  fn eyre(&self, fragment: &str, error: eyre::Error) -> eyre::Error {
-    let row_col = if let Some((row, col)) = self.find_fragment_row_col(fragment)
-    {
+  fn rowcol_fmt(&self, fragment: &str) -> String {
+    if let Some((row, col)) = self.find_fragment_row_col(fragment) {
       format!("{}:{}", row + 1, col)
     } else {
       "?:?".to_string()
-    };
+    }
+  }
+
+  fn eyre(&self, fragment: &str, error: eyre::Error) -> eyre::Error {
+    let row_col = self.rowcol_fmt(fragment);
     error.wrap_err(format!("at {} ({})", row_col, fragment))
   }
+
+  // Parsing is below
 
   fn eat_stanza<'a>(
     &self,
@@ -152,6 +165,7 @@ impl<'source> ParseMeta<'source> {
       if let Some(line) = lines.get(0)
         && line.trim().is_empty()
       {
+        trace!("finished a stanza, newline at {}", self.rowcol_fmt(line));
         let nl_count = lines
           .iter()
           .take_while(|line| line.trim().is_empty())
@@ -199,6 +213,7 @@ impl<'source> ParseMeta<'source> {
     &self,
     rest: &str,
   ) -> eyre::Result<(String, Option<String>)> {
+    trace!("parsing field header at {}", self.rowcol_fmt(rest));
     let (field_name, rest) = rest.split_once(':').ok_or_else(|| {
       self.eyre(rest, eyre!("could not find `:` in field header line"))
     })?;
@@ -208,6 +223,12 @@ impl<'source> ParseMeta<'source> {
     } else {
       Some(rest.to_owned())
     };
+    trace!(
+      "found field header {:?}: {:?} at {}",
+      &field_name,
+      &oneline_value,
+      self.rowcol_fmt(rest)
+    );
     Ok((field_name.to_owned(), oneline_value))
   }
 
@@ -239,6 +260,7 @@ impl<'source> ParseMeta<'source> {
         eyre!("multiline field lines must start with whitespace"),
       ));
     }
+    trace!("found multiline field line at {}", self.rowcol_fmt(line));
     Ok(line.trim_matches(WHITESPACE).to_owned())
   }
 }
