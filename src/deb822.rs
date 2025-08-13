@@ -11,8 +11,8 @@ pub mod copyright;
 
 use std::{collections::HashMap, str::FromStr};
 
-use eyre::{Context, OptionExt, eyre};
-use log::{debug, trace};
+use eyre::{OptionExt, eyre};
+use log::{info, trace};
 
 // Parsing.
 // Before we enter any `eat` function, comment lines are stripped.
@@ -47,12 +47,6 @@ impl Field {
   pub fn iter_lines(&self) -> impl Iterator<Item = &String> + '_ {
     self.same_line_value.iter().chain(self.list_values.iter())
   }
-
-  /// Convenience function that returns the number of values in this field
-  /// (including the same-line and list values).
-  pub fn len(&self) -> usize {
-    (self.same_line_value.is_some() as usize) + self.list_values.len()
-  }
 }
 
 impl FromStr for Deb822File {
@@ -77,7 +71,7 @@ impl FromStr for Deb822File {
       lines_slice = next_lines_slice;
     }
 
-    debug!("parsed Deb822 file with {} stanzas", stanzas.len());
+    info!("parsed Deb822 file with {} stanzas", stanzas.len());
     Ok(Deb822File { stanzas })
   }
 }

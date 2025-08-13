@@ -3,10 +3,10 @@
 //!
 //! https://www.debian.org/doc/packaging-manuals/copyright-format/1.0
 
-use std::{collections::HashSet, path::Path, str::FromStr};
+use std::{path::Path, str::FromStr};
 
 use eyre::{Context, eyre};
-use log::{debug, trace};
+use log::info;
 
 use crate::{deb822::Deb822File, glob::Glob};
 
@@ -42,14 +42,21 @@ impl CopyrightFile {
       }
     }
 
-    debug!(
-      "specialized CopyrightFile, {} stanzas turned into {} globx",
+    info!(
+      "specialized CopyrightFile, {} stanzas turned into {} globs",
       deb.stanzas.len(),
       out.excludes.len()
     );
     Ok(out)
   }
 
+  /// Check if the given path is excluded.
+  ///
+  /// Note that this plays a little bit fast-and-loose with
+  /// non-UTF8 paths. It first converts the path using
+  /// [`Path::to_string_lossy`], which usually is good enough.
+  ///
+  /// If it becomes a problem I'll fix it.
   pub fn is_path_excluded<P: AsRef<Path>>(&self, p: P) -> bool {
     let p = p.as_ref();
     let path_str = p.to_string_lossy();

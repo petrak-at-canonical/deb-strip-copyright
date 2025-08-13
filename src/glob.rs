@@ -1,7 +1,7 @@
 //! Simple Glob implementation that only allows `*`, `?`, and escapes.
 //! This is in accordance with Debian copyright syntax.
 
-use std::{fmt::Write, path::Path, str::FromStr};
+use std::{fmt::Write, str::FromStr};
 
 use eyre::eyre;
 

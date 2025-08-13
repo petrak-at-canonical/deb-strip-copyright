@@ -1,14 +1,15 @@
 mod deb822;
 mod glob;
+mod strip;
 
 use std::{path::PathBuf, str::FromStr};
 
 use clap::{Parser, Subcommand, command};
-use eyre::eyre;
 
 use crate::{
   deb822::{Deb822File, copyright::CopyrightFile},
   glob::Glob,
+  strip::Strip,
 };
 
 /// A replacement for mk-origtargz.
@@ -19,12 +20,15 @@ use crate::{
 /// (-v: info, -vv: debug, -vvv: trace).
 ///
 /// Exit Codes:
+///
 /// - 0 = success
+///
 /// - 1 = error/panic
+///
 /// Other subcommands may have their own exit codes.
 #[derive(Parser)]
 #[command(version, propagate_version = true)]
-struct Args {
+struct Cli {
   // this means that by default, only print warn!() and error!()
   // one -v means start printing info!(), -vv = debug!(), -vvv = trace!()
   #[command(flatten)]
@@ -35,6 +39,8 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Subcommands {
+  #[command(name = "strip")]
+  Strip(Strip),
   #[command(name = "debugs", subcommand)]
   DebugSubcommands(DebugSubcommands),
 }
@@ -70,12 +76,15 @@ enum DebugSubcommands {
 }
 
 fn main() -> eyre::Result<()> {
-  let cli = Args::parse();
+  let cli = Cli::parse();
   env_logger::Builder::new()
     .filter_level(cli.verbosity.into())
     .init();
 
   match cli.subcommand {
+    Subcommands::Strip(strip) => {
+      strip.do_it()?;
+    }
     Subcommands::DebugSubcommands(dbg) => match dbg {
       DebugSubcommands::ParseDeb822 { path } => {
         let file = std::fs::read_to_string(path)?;
