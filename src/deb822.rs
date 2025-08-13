@@ -9,11 +9,7 @@
 
 pub mod copyright;
 
-use std::{
-  collections::{HashMap, HashSet},
-  path::Path,
-  str::FromStr,
-};
+use std::{collections::HashMap, str::FromStr};
 
 use eyre::{Context, OptionExt, eyre};
 

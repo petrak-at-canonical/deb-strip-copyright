@@ -3,8 +3,6 @@
 
 use std::{collections::HashSet, path::Path, str::FromStr};
 
-use eyre::OptionExt;
-
 use crate::deb822::Deb822File;
 
 #[derive(Clone, Debug)]
