@@ -77,23 +77,28 @@ impl Strip {
     {
       let mut entry = entry.wrap_err("malformed entry in input tar file")?;
 
+      let real_path = entry.path()?.into_owned();
       // tarfile paths for `foo-bar.tar.xz` start with `foo-bar/`
       // so skip that
-      let path: PathBuf = entry.path()?.components().skip(1).collect();
-      let exclude = copyright.is_path_excluded(&path);
+      let checked_path: PathBuf = real_path.components().skip(1).collect();
+      let exclude = copyright.is_path_excluded(&checked_path);
       if !exclude {
-        if let Some(ref mut txzw) = tar_xz_writer {
-          let header = entry.header().clone();
-          txzw.append(&header, &mut entry)?;
-        }
         keep_count += 1;
+        if let Some(ref mut txzw) = tar_xz_writer {
+          let mut header = entry.header().clone();
+          txzw.append_data(&mut header, &real_path, &mut entry)?;
+        }
       }
+
       total_count += 1;
-      progress_spinner.set_message(format!(
-        "{} {}",
-        if exclude { "excl" } else { "incl" },
-        path.display()
-      ));
+      // Only print every so often because you can't read that fast anyways
+      if total_count % 10 == 0 {
+        progress_spinner.set_message(format!(
+          "{} {}",
+          if exclude { "excl" } else { "incl" },
+          checked_path.display()
+        ));
+      }
     }
 
     if let Some(mut txzw) = tar_xz_writer {

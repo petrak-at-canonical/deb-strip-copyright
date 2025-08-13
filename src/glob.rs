@@ -63,13 +63,12 @@ impl Glob {
             // this should be forbidden by the FromStr impl
             panic!("cannot have a `*` followed by a wildcard!");
           };
-          let Some(next_lit_start) = next_lit.chars().next() else {
-            // this should also forbidden by the FromStr impl
-            panic!("cannot have an empty Literal glob segment!");
-          };
-          if let Some(start_idx) = s_slice.find(next_lit_start) {
-            // Slice away everything up to that point
+          if let Some(start_idx) = s_slice.find(next_lit) {
+            // Slice away everything up to that point.
             s_slice = &s_slice[start_idx..];
+            // The next iteration will redo the work of checking for this
+            // literal segment.
+            // But that's alright, I doubt it makes tons of speed difference
           } else {
             return false;
           }
@@ -77,9 +76,18 @@ impl Glob {
       }
     }
 
-    // it does not matter if the string is empty or not,
-    // because globs allow trailing
-    true
+    // The docs are confusing and contentious about this.
+    // I THINK that what it wants is that in general globs must match to the
+    // end of the string, BUT a glob that matches a full directory also
+    // matches all its contents.
+    // IE `vendor/libfoobar-1.0.0` matches "vendor/libfoobar-1.0.0/Cargo.toml"
+    // In the above example, s_slice would be "/libfoobar-1.0.0/Cargo.toml" when
+    // control flow reaches here.
+    let Some(next_char) = s_slice.chars().next() else {
+      // if it's empty, we're set
+      return true;
+    };
+    next_char == '/'
   }
 
   /// Return if this glob is empty.
