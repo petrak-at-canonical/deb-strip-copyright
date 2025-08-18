@@ -47,11 +47,15 @@ impl Glob {
           }
         }
         GlobSegment::Question => {
-          let next_ch = s_slice.char_indices().next();
+          // `take` is the first character.
+          // we want the *second*. But because of zero-indexing,
+          // nth(1) does that.
+          let next_ch = s_slice.char_indices().nth(1);
           if let Some((idx, _)) = next_ch {
             s_slice = &s_slice[idx..];
           } else {
-            return false;
+            // Else we ate the entire string.
+            return true;
           }
         }
         GlobSegment::Star => {

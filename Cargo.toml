@@ -16,3 +16,7 @@ tar = "0.4.44"
 # Audit: google/rust-crate-audits safe-to-run
 # https://lib.rs/crates/xz2/audit
 xz2 = "0.1.7"
+
+[dev-dependencies]
+# Bootleg fuzz testing
+fastrand = "2.3.0"

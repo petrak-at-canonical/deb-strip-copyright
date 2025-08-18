@@ -24,30 +24,35 @@ impl CopyrightFile {
   /// files and nothing else, stanzas without any copyright
   /// information are not put into `self`.
   pub fn new(deb: Deb822File) -> eyre::Result<Self> {
-    // this is hard to write as an iterator train
-    // because we need to shortcut-return the error possibly
-    let mut out = CopyrightFile {
-      excludes: Vec::new(),
-    };
-
-    for deb_stanza in deb.stanzas.iter() {
-      if let Some(fex) = deb_stanza.fields.get("Files-Excluded") {
-        for form in fex.iter_lines().cloned() {
-          let glob = Glob::from_str(&form)
-            .wrap_err_with(|| eyre!("while parsing glob string {:?}", &form))?;
-          if !glob.is_empty() {
-            out.excludes.push(glob);
+    let excludes: Result<Vec<_>, _> = deb
+      .stanzas
+      .iter()
+      .filter_map(|stanza| stanza.fields.get("Files-Excluded"))
+      .flat_map(|fex| fex.iter_lines())
+      .flat_map(|line| line.split_ascii_whitespace())
+      .filter_map(|glob_str| {
+        let glob = Glob::from_str(&glob_str);
+        match glob {
+          Ok(glob) => {
+            if glob.is_empty() {
+              Some(Ok(glob))
+            } else {
+              None
+            }
           }
+          ono @ Err(..) => Some(ono.wrap_err_with(|| {
+            eyre!("while parsing glob string {:?}", &glob_str)
+          })),
         }
-      }
-    }
-
+      })
+      .collect();
+    let excludes = excludes?;
     info!(
       "specialized CopyrightFile, {} stanzas turned into {} globs",
       deb.stanzas.len(),
-      out.excludes.len()
+      excludes.len()
     );
-    Ok(out)
+    Ok(CopyrightFile { excludes })
   }
 
   /// Check if the given path is excluded.

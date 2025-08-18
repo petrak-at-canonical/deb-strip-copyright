@@ -1,18 +1,14 @@
-mod deb822;
-mod glob;
-mod strip;
-
 use std::{path::PathBuf, str::FromStr};
 
 use clap::{Parser, Subcommand, command};
 
-use crate::{
+use deb_strip_copyright::{
   deb822::{Deb822File, copyright::CopyrightFile},
   glob::Glob,
   strip::Strip,
 };
 
-/// A replacement for mk-origtargz.
+/// A (WIP incomplete) replacement for mk-origtargz.
 ///
 /// This program uses env_logger and its associated environment variables.
 /// By default, it logs at the warn level.
