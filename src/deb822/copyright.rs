@@ -34,7 +34,7 @@ impl CopyrightFile {
         let glob = Glob::from_str(&glob_str);
         match glob {
           Ok(glob) => {
-            if glob.is_empty() {
+            if !glob.is_empty() {
               Some(Ok(glob))
             } else {
               None
