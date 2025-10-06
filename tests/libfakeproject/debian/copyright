@@ -1,0 +1,9 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: libfakeproject
+Source: https://example.com
+Files:
+ src/main.py
+Files-Excluded:
+# Comment just to keep you on your toes
+ src/illegal.py
+# Another comment!
